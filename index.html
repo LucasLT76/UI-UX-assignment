@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Haven: a SmartHome control app UX prototype. Demo mode, no real hardware.">
+  <title>Haven – SmartHome Control (Demo)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- Screen 1: Welcome / Login -->
+  <section id="login" class="login" aria-labelledby="loginTitle">
+    <div class="login-hero">
+      <p class="brand">Haven</p>
+      <h1 id="loginTitle">Your home, at a glance.</h1>
+      <p class="muted">Lights, climate, security and energy in one calm dashboard.</p>
+      <p class="demo-note">Demo mode: this prototype is not connected to real devices, and sign-in is a front-end demo only.</p>
+    </div>
+    <form id="loginForm" class="card login-form" novalidate>
+      <h2>Sign in</h2>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="email" placeholder="you@example.com" aria-describedby="emailErr">
+        <p id="emailErr" class="err" role="alert"></p>
+      </div>
+      <div class="field">
+        <label for="password">Password (min. 6 characters)</label>
+        <input id="password" type="password" autocomplete="current-password" aria-describedby="passwordErr">
+        <p id="passwordErr" class="err" role="alert"></p>
+      </div>
+      <button class="btn primary" type="submit">Sign in</button>
+      <button class="btn ghost" type="button" id="demoLogin">Use demo login</button>
+      <p class="muted small">Passwords are never stored or sent anywhere.</p>
+    </form>
+  </section>
+
+  <!-- App shell: screens 2–6 -->
+  <div id="app" class="app" hidden>
+    <aside class="side">
+      <p class="brand">Haven</p>
+      <nav id="nav" aria-label="Main"></nav>
+    </aside>
+    <div class="content">
+      <header class="top">
+        <h1 id="viewTitle" tabindex="-1">Home</h1>
+        <div class="top-actions">
+          <span class="pill">Demo mode · no real devices</span>
+          <button class="btn ghost" id="feedbackBtn" type="button">Give feedback</button>
+          <button class="btn ghost" id="logoutBtn" type="button">Sign out</button>
+        </div>
+      </header>
+      <main id="main" tabindex="-1">
+        <section data-view="dashboard" aria-labelledby="viewTitle" hidden></section>
+        <section data-view="rooms" aria-labelledby="viewTitle" hidden></section>
+        <section data-view="devices" aria-labelledby="viewTitle" hidden></section>
+        <section data-view="security" aria-labelledby="viewTitle" hidden></section>
+        <section data-view="energy" aria-labelledby="viewTitle" hidden></section>
+      </main>
+    </div>
+  </div>
+
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <script src="script.js"></script>
+</body>
+</html>
