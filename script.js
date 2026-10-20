@@ -2,7 +2,7 @@
 /* ===== Config (edit these) ===== */
 const CONFIG = {
   feedbackUrl: 'https://docs.google.com/forms/d/e/1FAIpQLScqPn1ssvw2XCh1aDFlaCfff-U_u_tvP0PvcVh7dZYjrbSY8w/viewform',
-  rate: 0.5,
+  rate: 0.5,        // demo electricity rate per kWh
   currency: 'RM'
 };
 const STORE = 'smarthome-demo-v1';
@@ -66,21 +66,33 @@ const totalWatts = () => Object.keys(ROOMS).reduce((a, r) => a + roomWatts(r), 0
 const countOn = list => list.filter(d => S.devices[d.id].on && online(d)).length;
 
 /* ===== Feedback ===== */
+const toastQ = []; let toastBusy = false;
 function say(msg, type) {
+  if (toastQ.length >= 2) toastQ.shift();      // never build up a backlog
+  toastQ.push({ msg, type });
+  if (!toastBusy) nextToast();
+}
+function nextToast() {
+  const n = toastQ.shift(), box = $('#toasts');
+  if (!n) { toastBusy = false; box.replaceChildren(); return; }
+  toastBusy = true;
   const t = document.createElement('div');
-  t.className = 'toast' + (type === 'err' ? ' err' : '');
-  t.textContent = msg;
-  $('#toasts').appendChild(t);
-  setTimeout(() => t.remove(), 3500);
+  t.className = 'toast' + (n.type === 'err' ? ' err' : '');
+  t.textContent = n.msg;
+  box.replaceChildren(t);
+  requestAnimationFrame(() => t.classList.add('in'));
+  const ms = toastQ.length ? 1400 : n.type === 'err' ? 3600 : 2200;
+  setTimeout(() => { t.classList.remove('in'); setTimeout(nextToast, 250); }, ms);
 }
 function addAlert(level, msg) {
+  if (S.alerts[0] && S.alerts[0].msg === msg) return;   // no duplicate back-to-back alerts
   S.alerts.unshift({ id: Date.now() + Math.random(), level, msg, time: clock() });
   S.alerts = S.alerts.slice(0, 8);
 }
 
 /* ===== Views ===== */
-const stat = (label, value, tone = '') =>
-  `<div class="card"><p class="muted">${label}</p><p class="big ${tone}">${value}</p></div>`;
+const stat = (label, value, tone = '', sub = '') =>
+  `<div class="card"><p class="muted">${label}</p><p class="big ${tone}">${value}</p>${sub ? `<p class="muted small">${sub}</p>` : ''}</div>`;
 const quick = (act, title, hint) =>
   `<button class="card tile" data-act="${act}" data-key="q-${act}"><h3>${title}</h3><p class="muted">${hint}</p></button>`;
 
@@ -103,8 +115,8 @@ function vDashboard() {
   </div>
   <h2 class="sec">Energy overview</h2>
   <div class="grid">
-    ${stat('Current load', `${(totalWatts() / 1000).toFixed(2)} kW`)}
-    ${stat('Used today', `${today} kWh`)}
+    ${stat('Current load', `${(totalWatts() / 1000).toFixed(2)} kW`, '', 'Power right now')}
+    ${stat('Used today', `${today} kWh`, '', 'Energy so far')}
     ${stat('Est. cost today', money(today * CONFIG.rate))}
     <div class="card row"><p class="muted">Full breakdown and weekly trend</p><a class="btn" href="#energy">View energy</a></div>
   </div>`;
@@ -112,7 +124,7 @@ function vDashboard() {
 
 function vRooms() {
   return `<p class="muted" style="margin-bottom:16px">Choose a room to see and control its devices.</p>
-  <div class="grid">${Object.entries(ROOMS).map(([k, n]) => {
+  <div class="grid two">${Object.entries(ROOMS).map(([k, n]) => {
     const l = DEFS.filter(d => d.room === k);
     return `<button class="card tile" data-act="room" data-room="${k}" data-key="room-${k}">
       <h3>${n}</h3><p class="muted">${countOn(l)} of ${l.length} devices on</p>
@@ -124,68 +136,80 @@ function devCard(d) {
   const s = S.devices[d.id], ok = online(d);
   const sw = ok && d.type !== 'fan'
     ? `<button class="sw" role="switch" aria-checked="${s.on}" aria-label="${d.name}" data-act="toggle" data-id="${d.id}" data-key="t-${d.id}"></button>` : '';
-  let status = 'Off', body = '';
+  let status = '', body = '';
   if (!ok) {
-    status = 'Offline';
+    status = 'Not responding';
     body = `<p class="muted">Can't reach this device. Check its power and Wi-Fi, then reconnect.</p>
       <button class="btn" data-act="retry" data-id="${d.id}" data-key="r-${d.id}">Reconnect</button>`;
   } else if (d.type === 'light') {
-    status = s.on ? `On · ${s.value}%` : 'Off';
+    status = s.on ? `${s.value}% brightness` : '';
     body = `<label class="row" for="b-${d.id}">Brightness <output id="o-${d.id}">${s.value}%</output></label>
       <input id="b-${d.id}" type="range" min="5" max="100" value="${s.value}" data-act="bright" data-id="${d.id}" ${s.on ? '' : 'disabled'}>`;
   } else if (d.type === 'ac') {
-    status = s.on ? `Cooling to ${s.value}°C` : 'Off';
+    status = s.on ? `Cooling to ${s.value}°C` : '';
     const dis = s.on ? '' : 'disabled';
     body = `<div class="temp">
       <button class="btn round" data-act="temp" data-id="${d.id}" data-d="-1" data-key="td-${d.id}" aria-label="Lower temperature" ${dis}>−</button>
       <output class="big" aria-live="polite">${s.value}°C</output>
       <button class="btn round" data-act="temp" data-id="${d.id}" data-d="1" data-key="tu-${d.id}" aria-label="Raise temperature" ${dis}>+</button></div>`;
   } else if (d.type === 'fan') {
-    status = s.on ? `Speed ${s.value}` : 'Off';
+    status = s.on ? `Speed ${s.value}` : '';
     body = `<div class="seg" role="group" aria-label="${d.name} speed">${[0, 1, 2, 3].map(n =>
       `<button data-act="fan" data-id="${d.id}" data-n="${n}" data-key="f-${d.id}-${n}" aria-pressed="${s.on ? s.value === n : n === 0}">${n || 'Off'}</button>`).join('')}</div>`;
-  } else status = s.on ? 'On' : 'Off';
+  }
+  const chip = !ok ? '<span class="badge bad">Offline</span>' : s.on ? '<span class="badge on">On</span>' : '<span class="badge">Off</span>';
   return `<article class="card dev${s.on && ok ? ' on' : ''}"><div class="row"><div><h3>${d.name}</h3>
-    <p class="muted">${status}</p></div>${sw}</div>${body}</article>`;
+    <p class="status">${chip} <span class="muted">${status}</span></p></div>${sw}</div>${body}</article>`;
 }
 
 function vDevices() {
   return `<div class="tabs" role="group" aria-label="Room">${Object.entries(ROOMS).map(([k, n]) =>
     `<button data-act="tab" data-room="${k}" data-key="tab-${k}" aria-pressed="${S.room === k}">${n}</button>`).join('')}</div>
   <h2 style="margin-bottom:12px">${ROOMS[S.room]}</h2>
-  <div class="grid">${DEFS.filter(d => d.room === S.room).map(devCard).join('')}</div>`;
+  <div class="grid two">${DEFS.filter(d => d.room === S.room).map(devCard).join('')}</div>`;
 }
 
 function vSecurity() {
-  const cam2 = S.online.cam2;
+  const cam2 = S.online.cam2, locked = S.door === 'locked';
+  const modes = { disarmed: 'Alarm is off. Motion only creates alerts.', home: 'Perimeter watch while you are home.', away: 'Full protection. Motion triggers the alarm.' };
+  const tag = { info: 'Info', warn: 'Warning', high: 'Alarm' };
   return `<div class="grid">
-    <div class="card stack"><div class="row"><h2>Front porch camera</h2><span class="badge ok">Live (simulated)</span></div>
-      <div class="cam" role="img" aria-label="Simulated camera preview, no real video"><span class="tl">CAM 1 · SIMULATED</span><span class="tr" id="camtime">${new Date().toLocaleTimeString()}</span><span class="bl">Motion zone: clear</span></div>
+    ${stat('Front door', locked ? 'Locked' : 'Unlocked', locked ? 'ok' : 'warn', 'Simulated lock')}
+    ${stat('Alarm', cap(S.alarm), S.alarm === 'disarmed' ? 'warn' : 'ok', 'Current mode')}
+    ${stat('Cameras online', `${cam2 ? 2 : 1} of 2`, cam2 ? 'ok' : 'warn', cam2 ? 'Both simulated' : 'Garage is offline')}
+    ${stat('Alerts', S.alerts.length, S.alerts.some(a => a.level === 'high') ? 'bad' : '', 'Simulated events')}
+  </div>
+  <div class="grid two" style="margin-top:16px">
+    <div class="card stack"><div class="row"><h2>Front porch camera</h2><span class="badge ok">Online</span></div>
+      <div class="cam" role="img" aria-label="Simulated camera preview, no real video"><span class="tl">CAM 1 · SIMULATED</span><span class="br" id="camtime">${new Date().toLocaleTimeString()}</span></div>
+      <p class="muted small">Motion zone: clear</p>
       <button class="btn" data-act="motion" data-key="motion">Simulate motion event</button></div>
-    <div class="card stack"><div class="row"><h2>Garage camera</h2><span class="badge ${cam2 ? 'ok' : 'bad'}">${cam2 ? 'Live (simulated)' : 'Offline'}</span></div>
+    <div class="card stack"><div class="row"><h2>Garage camera</h2><span class="badge ${cam2 ? 'ok' : 'bad'}">${cam2 ? 'Online' : 'Offline'}</span></div>
       <div class="cam ${cam2 ? '' : 'off'}" ${cam2 ? 'role="img" aria-label="Simulated camera preview"' : ''}>${cam2 ? '<span class="tl">CAM 2 · SIMULATED</span>' : 'Camera offline'}</div>
       ${cam2 ? '' : '<button class="btn" data-act="retry" data-id="cam2" data-key="r-cam2">Reconnect camera</button>'}</div>
-    <div class="card stack"><div class="row"><div><h2>Front door</h2><p class="muted">${cap(S.door)}</p></div>
-      <button class="sw" role="switch" aria-checked="${S.door === 'locked'}" aria-label="Front door lock" data-act="door" data-key="door"></button></div>
-      <p class="muted small">On = locked. Simulated only.</p></div>
-    <div class="card stack"><h2>Alarm</h2>
+    <div class="card stack"><div class="row"><h2>Front door</h2><span class="badge ${locked ? 'ok' : 'warn'}">${locked ? 'Locked' : 'Unlocked'}</span></div>
+      <button class="btn ${locked ? '' : 'primary'}" data-act="door" data-key="door">${locked ? 'Unlock door' : 'Lock door'}</button>
+      <p class="muted small">Simulated. Can't be unlocked while the alarm is on Away.</p></div>
+    <div class="card stack"><div class="row"><h2>Alarm</h2><span class="badge ${S.alarm === 'disarmed' ? 'warn' : 'ok'}">${cap(S.alarm)}</span></div>
       <div class="seg" role="group" aria-label="Alarm mode">${['disarmed', 'home', 'away'].map(m =>
         `<button data-act="alarm" data-mode="${m}" data-key="a-${m}" aria-pressed="${S.alarm === m}">${cap(m)}</button>`).join('')}</div>
-      <p class="muted small">Away mode needs the door locked.</p></div>
+      <p class="muted small">${modes[S.alarm]} Away needs the door locked.</p></div>
   </div>
-  <div class="card" style="margin-top:16px"><div class="row"><h2>Alerts</h2>
+  <div class="card" style="margin-top:16px"><div class="row"><h2>Alerts (${S.alerts.length}) · simulated</h2>
     <button class="btn ghost" data-act="clear" data-key="clear" ${S.alerts.length ? '' : 'disabled'}>Clear all</button></div>
-    ${S.alerts.length ? `<ul class="alerts">${S.alerts.map(a => `<li class="${a.level}"><span>${esc(a.msg)} <span class="muted small">· ${esc(a.time)}</span></span>
+    ${S.alerts.length ? `<ul class="alerts">${S.alerts.map(a => `<li class="${a.level}"><span><span class="badge ${a.level}">${tag[a.level]}</span> ${esc(a.msg)} <span class="muted small">· ${esc(a.time)}</span></span>
       <button class="btn ghost" data-act="dismiss" data-id="${a.id}" aria-label="Dismiss alert: ${esc(a.msg)}">Dismiss</button></li>`).join('')}</ul>`
       : '<p class="muted" style="margin-top:12px">No alerts. Try simulating a motion event.</p>'}</div>`;
 }
 
 function chart() {
-  const max = Math.max(...WEEK) * 1.15, bw = 52, gap = (640 - 7 * bw) / 6;
+  const top = 16, bw = 52, x0 = 64, gap = (600 - 7 * bw) / 6;
   const days = WEEK.map((_, i) => i === 6 ? 'Today' : new Date(Date.now() - (6 - i) * 864e5).toLocaleDateString('en', { weekday: 'short' }));
   const label = WEEK.map((v, i) => `${days[i]} ${v} kWh`).join(', ');
-  return `<svg viewBox="0 0 700 280" role="img" aria-label="Daily energy use over 7 days: ${label}">${WEEK.map((v, i) => {
-    const x = 30 + i * (bw + gap), h = v / max * 220, y = 240 - h;
+  const grid = [0, 5, 10, 15].map(t => { const y = 240 - t / top * 220;
+    return `<line x1="${x0 - 8}" x2="672" y1="${y}" y2="${y}" stroke="var(--border)" stroke-width="0.5"/><text x="${x0 - 14}" y="${y + 4}" text-anchor="end">${t}</text>`; }).join('');
+  return `<svg viewBox="0 0 700 280" role="img" aria-label="Energy used per day in kWh over 7 days: ${label}"><text x="${x0 - 14}" y="10" text-anchor="end">kWh</text>${grid}${WEEK.map((v, i) => {
+    const x = x0 + i * (bw + gap), h = v / top * 220, y = 240 - h;
     return `<rect class="bar${i === 6 ? ' today' : ''}" x="${x}" y="${y}" width="${bw}" height="${h}" rx="8"/>
       <text class="val" x="${x + bw / 2}" y="${y - 8}" text-anchor="middle">${v}</text>
       <text x="${x + bw / 2}" y="264" text-anchor="middle">${days[i]}</text>`;
@@ -194,21 +218,25 @@ function chart() {
 
 function vEnergy() {
   const total = WEEK.reduce((a, b) => a + b, 0), diff = (total - LAST_WEEK) / LAST_WEEK * 100;
-  const tw = totalWatts() || 1;
-  return `<p class="demo-note" style="margin-bottom:16px;border-left:3px solid var(--warn);padding-left:12px;color:var(--muted)">Demo data. Cost uses an example rate of ${money(CONFIG.rate)} per kWh.</p>
+  const tw = totalWatts(), kw = (tw / 1000).toFixed(2);
+  return `<p class="demo-note" style="margin-bottom:16px">Demo data. Not real meter readings.</p>
   <div class="grid">
-    ${stat('Used today', `${WEEK[6]} kWh`)}
-    ${stat('7-day total', `${total.toFixed(1)} kWh`)}
-    ${stat('Est. weekly cost', money(total * CONFIG.rate))}
-    ${stat('Vs last week', `${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}%`, diff > 0 ? 'warn' : 'ok')}
+    ${stat('Used today', `${WEEK[6]} kWh`, '', 'Energy so far today')}
+    ${stat('Last 7 days', `${total.toFixed(1)} kWh`, '', 'Energy used')}
+    ${stat('Est. cost, 7 days', money(total * CONFIG.rate), '', `${total.toFixed(1)} kWh × ${money(CONFIG.rate)}`)}
+    ${stat('Vs previous 7 days', `${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}%`, diff > 0 ? 'warn' : 'ok', `Previous: ${LAST_WEEK} kWh`)}
   </div>
-  <div class="card" style="margin-top:16px"><h2>Daily usage (kWh)</h2>${chart()}</div>
-  <div class="card" style="margin-top:16px"><h2>Where power goes right now</h2>
+  <div class="card" style="margin-top:16px"><h2>Energy used per day (kWh)</h2>${chart()}
+    <p class="muted small">The highlighted bar is today and is still counting.</p></div>
+  <div class="card" style="margin-top:16px"><div class="row"><h2>Power draw by room, right now</h2><span class="muted">Total ${kw} kW (${Math.round(tw)} W)</span></div>
     <ul class="bars">${Object.entries(ROOMS).map(([k, n]) => {
-      const w = roomWatts(k);
-      return `<li><div class="row"><span>${n}</span><span class="muted">${Math.round(w)} W</span></div>
-        <div class="bar-track"><div class="bar-fill" style="width:${w / tw * 100}%"></div></div></li>`;
-    }).join('')}</ul></div>`;
+      const w = roomWatts(k), pct = tw ? Math.round(w / tw * 100) : 0;
+      return `<li><div class="row"><span>${n}</span><span class="muted">${Math.round(w)} W · ${pct}%</span></div>
+        <div class="bar-track" role="progressbar" aria-label="${n} share of current load" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><div class="bar-fill" style="width:${pct}%"></div></div></li>`;
+    }).join('')}</ul></div>
+  <div class="card" style="margin-top:16px"><h2>How to read this page</h2>
+    <p class="muted small" style="margin-top:8px"><strong>W and kW</strong> are power: what is being drawn right now. <strong>kWh</strong> is energy: power over time, which is what you are billed for.</p>
+    <p class="muted small" style="margin-top:6px">Estimated cost = kWh used × ${money(CONFIG.rate)} per kWh (a demo rate, not a real tariff).</p></div>`;
 }
 
 const VIEW_FN = { dashboard: vDashboard, rooms: vRooms, devices: vDevices, security: vSecurity, energy: vEnergy };
@@ -276,6 +304,7 @@ function act(a, el) {
     case 'alarm': {
       const m = el.dataset.mode;
       if (m === 'away' && S.door !== 'locked') { say('Lock the front door before arming Away mode.', 'err'); break; }
+      if (m === S.alarm) { say(`Alarm is already ${m}.`); break; }
       S.alarm = m; addAlert('info', `Alarm set to ${m}`); say(`Alarm set to ${m} (simulated).`); break;
     }
     case 'motion':

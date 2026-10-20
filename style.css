@@ -22,7 +22,7 @@ a{color:var(--accent)}
 .brand{font-weight:800;font-size:1.3rem;letter-spacing:-.02em}
 
 /* ===== Buttons & controls ===== */
-.btn{border:1px solid var(--line);background:var(--card-hi);padding:10px 16px;border-radius:var(--radius-s);cursor:pointer;font-weight:600;min-height:44px;transition:background .15s,border-color .15s;}
+.btn{border:1px solid var(--line);background:var(--card-hi);padding:10px 16px;border-radius:var(--radius-s);cursor:pointer;font-weight:600;min-height:44px;transition:background .15s,border-color .15s}
 .btn:hover:not(:disabled){border-color:var(--accent)}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .btn.ghost{background:transparent}
@@ -118,7 +118,97 @@ svg .val{fill:var(--text)}
   #toasts{bottom:84px}
 }
 @media (max-width:520px){
-  .pill{display:none}
+  .pill{font-size:.72rem;padding:4px 10px}
   .temp{gap:14px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== Responsive refinements (later rules override earlier ones) ===== */
+.content{margin-inline:auto;min-width:0}
+.grid>*,.stack>*{min-width:0}
+.grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.row,.alerts li{flex-wrap:wrap}
+.card>svg{display:block;width:100%;height:auto;min-width:520px}   /* chart stays legible; scrolls sideways inside its card on phones */
+.card:has(>svg){overflow-x:auto}
+.login{min-height:100dvh}
+
+/* Large screens */
+@media (min-width:1600px){html{font-size:112.5%}.content{max-width:1400px}}
+
+/* Desktop and wide tablet: sidebar */
+@media (min-width:901px){.app{min-height:100dvh}.side{height:100dvh}}
+/* Small laptop / landscape tablet: compact icon rail */
+@media (min-width:901px) and (max-width:1100px){
+  .app{grid-template-columns:88px 1fr}
+  .side{padding:20px 8px}
+  .side .brand{font-size:1rem;text-align:center}
+  #nav a{flex-direction:column;gap:2px;padding:10px 4px;font-size:.72rem;text-align:center;justify-content:center}
+  #nav a span[aria-hidden]{font-size:1.3rem}
+}
+/* Tablet and phone: bottom bar */
+@media (max-width:900px){
+  .side{padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}
+  .content{padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+  .top-actions{width:100%}
+  .top-actions .btn{flex:1}
+  #nav a span[aria-hidden]{font-size:1.25rem}
+}
+/* Phone */
+@media (max-width:520px){
+  .content{padding:20px 16px 100px}
+  .card{padding:16px}
+  .big{font-size:1.5rem}
+  .grid:has(>.card>p.big){grid-template-columns:repeat(2,minmax(0,1fr))}   /* stat cards go 2-up */
+  .seg button{min-width:40px}
+  .cam span{font-size:.7rem}
+  .login{padding:24px 16px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+  .tabs button{flex:none}
+  #toasts{left:16px;right:16px;max-width:none}
+}
+/* Very small phones */
+@media (max-width:360px){
+  .btn{padding:10px 12px}
+  #nav a{font-size:.66rem}
+  .top-actions .btn{font-size:.85rem}
+}
+/* Phone held sideways */
+@media (max-height:500px) and (max-width:900px){
+  .login{align-items:start}
+  #toasts{bottom:72px}
+}
+
+/* ===== v2: single toast, status chips, security and energy clarity ===== */
+#toasts{left:50%;right:auto;transform:translateX(-50%);bottom:24px;display:block;width:max-content;max-width:min(420px,calc(100vw - 32px));pointer-events:none}
+.toast{opacity:0;transform:translateY(8px);transition:opacity .2s,transform .2s}
+.toast.in{opacity:1;transform:none}
+@media (max-width:900px){#toasts{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:520px){#toasts{left:50%;right:auto;max-width:calc(100vw - 32px)}.pill{flex-basis:100%;text-align:center}}
+.status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.badge{white-space:nowrap}
+.badge.on{background:rgba(91,155,255,.2);color:#cfe0ff}
+.badge.high{color:var(--bad)} .badge.warn{color:var(--warn)}
+.alerts li>span:first-child{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dev h3{overflow-wrap:anywhere}
+.demo-note{border-left:3px solid var(--warn);padding:8px 12px;color:var(--muted);font-size:.9rem}
+
+/* ===== v3: overlap fixes ===== */
+.cam span{font-size:.7rem;max-width:calc(100% - 20px)}
+.cam .br{bottom:10px;right:10px}
+.seg button{padding-inline:6px;font-size:.92rem}
+.card{min-width:0}
+
+/* ===== v4: even grids, no orphan cards ===== */
+.stack{align-content:start}
+.grid.two{grid-template-columns:minmax(0,1fr)}
+@media (min-width:700px){.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.grid:has(>.card>p.big){grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:1000px){.grid:has(>.card>p.big){grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+/* ===== v5: sidebar background runs full page height (full-page screenshots) ===== */
+@media (min-width:901px){.app{background:linear-gradient(to right,var(--surface) 239px,var(--line) 239px,var(--line) 240px,transparent 240px)}}
+@media (min-width:901px) and (max-width:1100px){.app{background:linear-gradient(to right,var(--surface) 87px,var(--line) 87px,var(--line) 88px,transparent 88px)}}
+
+/* ===== v6: segmented buttons on very small phones ===== */
+.seg button{white-space:nowrap}
+@media (max-width:400px){.seg{gap:4px}.seg button{padding-inline:2px;font-size:.8rem;min-width:0}}
